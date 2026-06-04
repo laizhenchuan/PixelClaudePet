@@ -1,0 +1,4 @@
+psutil>=5.9.0
+GPUtil>=1.4.0
+pyserial>=3.5
+pywin32>=306

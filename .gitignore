@@ -1,0 +1,36 @@
+# Keil build output
+Output/
+*.uvguix.*
+*.uvoptx
+*.bak
+*.dep
+*.crf
+*.d
+*.o
+*.axf
+*.hex
+*.htm
+*.lnp
+*.lst
+*.map
+*.iex
+*.sct
+*.build_log.htm
+JLinkLog.txt
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.zip
+
+# Keil user files
+DebugConfig/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+desktop.ini

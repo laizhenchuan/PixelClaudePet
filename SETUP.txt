@@ -1,0 +1,48 @@
+=================================================
+  Pixel Slime Pet - Setup Guide
+  STM32F407VET6 + ILI9341 2.8" LCD
+  Compiler: ARM Compiler 6 (AC6)
+=================================================
+
+1. Open Keil MDK 5
+   Double-click STM32F407.uvprojx
+
+2. Project already configured for AC6.
+   Source files and include paths pre-configured.
+
+   Groups:
+     USER   - main.c, stm32f4xx_it.c/h, conf.h
+     APP    - pet_core, pet_render, pet_command, pet_save
+     BSP    - LED, KEY, LCD(ILI9341), UART, W25Q128, I2C(Soft), AT24C02
+     CMSIS  - core_cm4, system_stm32f4xx
+     STARTUP- startup_stm32f40xx.s
+     STM32F4xx_StdPeriph_Driver - full standard library
+
+3. Compile: F7
+   Flash: F8
+
+4. Connect serial terminal (115200-8N1)
+   Type 'help' for commands
+
+=================================================
+
+Commands:
+  feed    - Feed pet (+25 hunger)
+  play    - Play with pet (+20 mood, -5 energy)
+  clean   - Clean pet (+25 hygiene)
+  sleep   - Let pet sleep (+35 energy)
+  status  - Show all stats
+  name X  - Rename pet to X
+  info    - Pet info card
+  save    - Force save to EEPROM
+  help    - List all commands
+
+LCD Buttons:
+  KEY1 - Feed
+  KEY2 - Play
+  KEY3 - Clean
+
+LED Indicators:
+  Blue blink = Save loaded successfully
+  Red blink  = Pet is sick
+=================================================

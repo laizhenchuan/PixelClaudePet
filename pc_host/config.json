@@ -1,0 +1,17 @@
+{
+    "serial": {
+        "port": "COM3",
+        "baudrate": 115200,
+        "timeout": 1
+    },
+    "monitor": {
+        "interval_sec": 1.0
+    },
+    "claude": {
+        "status_file": "C:\\Users\\29918\\.claude\\claude_status.txt",
+        "default_status": "idle"
+    },
+    "service": {
+        "log_file": "C:\\Users\\29918\\pixel_claude_pet.log"
+    }
+}
