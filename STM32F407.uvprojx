@@ -340,7 +340,7 @@
               <MiscControls>-Wno-incompatible-library-redeclaration -Wno-unused-variable</MiscControls>
               <Define>USE_STDPERIPH_DRIVER,STM32F40_41xxx,__NO_EMBEDDED_ASM</Define>
               <Undefine></Undefine>
-              <IncludePath>User;Core;Core\Startup;STM32F4xx_StdPeriph_Driver\inc;STM32F4xx_StdPeriph_Driver\src;BSP\LED;BSP\KEY;BSP\W25Q128;BSP\LCD_ILI9341;BSP\UART;BSP\I2C;BSP\AT24C02;app</IncludePath>
+              <IncludePath>User;Core;Core\Startup;STM32F4xx_StdPeriph_Driver\inc;STM32F4xx_StdPeriph_Driver\src;BSP\LED;BSP\KEY;BSP\W25Q128;BSP\LCD_ILI9341;BSP\UART;BSP\I2C;BSP\AT24C02;BSP\DHT11;app</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -418,6 +418,11 @@
               <FileName>bsp_UART.c</FileName>
               <FileType>1</FileType>
               <FilePath>BSP\UART\bsp_UART.c</FilePath>
+            </File>
+            <File>
+              <FileName>bsp_dht11.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>BSP\DHT11\bsp_dht11.c</FilePath>
             </File>
             <File>
               <FileName>bsp_LCD_ILI9341.c</FileName>

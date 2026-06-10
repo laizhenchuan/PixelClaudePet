@@ -3,11 +3,19 @@ import subprocess
 import time
 import psutil
 
-try:
-    import GPUtil
-    HAS_GPU = True
-except ImportError:
-    HAS_GPU = False
+_GPUtil = None
+_HAS_GPU = None
+
+def _has_gpu():
+    global _GPUtil, _HAS_GPU
+    if _HAS_GPU is None:
+        try:
+            import GPUtil as g
+            _GPUtil = g
+            _HAS_GPU = True
+        except ImportError:
+            _HAS_GPU = False
+    return _HAS_GPU
 
 
 def _get_cpu_temp_wmi() -> float:
@@ -63,10 +71,10 @@ def get_cpu_usage() -> int:
 
 def get_gpu_temp() -> float:
     """Get GPU temperature in Celsius. Returns -1 if no GPU or unavailable."""
-    if not HAS_GPU:
+    if not _has_gpu():
         return -1.0
     try:
-        gpus = GPUtil.getGPUs()
+        gpus = _GPUtil.getGPUs()
         if gpus:
             return gpus[0].temperature
     except Exception:
@@ -76,10 +84,10 @@ def get_gpu_temp() -> float:
 
 def get_gpu_usage() -> int:
     """Get GPU utilization percentage (0-100). Returns -1 if no GPU."""
-    if not HAS_GPU:
+    if not _has_gpu():
         return -1
     try:
-        gpus = GPUtil.getGPUs()
+        gpus = _GPUtil.getGPUs()
         if gpus:
             return int(gpus[0].load * 100)
     except Exception:
@@ -95,7 +103,9 @@ def get_mem_usage() -> int:
 def collect_all() -> dict:
     """Collect all hardware stats into a dict."""
     return {
+        'date': time.strftime('%Y-%m-%d'),
         'time': time.strftime('%H:%M:%S'),
+        'weekday': time.localtime().tm_wday,  # 0=Mon .. 6=Sun
         'cpu_temp': get_cpu_temp(),
         'cpu_usage': get_cpu_usage(),
         'gpu_temp': get_gpu_temp(),

@@ -726,7 +726,7 @@ void LCD_String(uint16_t x, uint16_t y, char *pFont, uint8_t size, uint32_t fCol
         if (y > (xLCD.height - size))                              // ��λ���жϣ����������ĩ���ͷ��أ��������
             return;
 
-        if (*pFont < 127)                                          // ASCII�ַ�
+        if ((uint8_t)*pFont < 0x80)                                          // ASCII�ַ�
         {
             drawAscii(x, y, *pFont, size, bColor, fColor);
             pFont++;

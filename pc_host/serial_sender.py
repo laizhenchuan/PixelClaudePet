@@ -51,9 +51,12 @@ class SerialSender:
         if self._ser is None or not self._ser.is_open:
             return ""
         try:
-            return self._ser.readline().decode('utf-8', errors='ignore').strip()
+            if self._ser.in_waiting > 0:
+                self._ser.timeout = 0.05
+                return self._ser.readline().decode('utf-8', errors='ignore').strip()
         except (serial.SerialException, OSError):
             return ""
+        return ""
 
     def close(self):
         if self._ser and self._ser.is_open:

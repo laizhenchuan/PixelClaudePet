@@ -448,19 +448,144 @@ void Render_PCStatusBar(void)
     LCD_Line(0, y, LCD_WIDTH - 1, y, DARKBLUE);
 }
 
+/* Display Chinese status using FONT.H indices (W25Q128 font lib not available) */
+/* Indices in aFontChinese16: 5=就 6=绪 7=思 8=考 9=中 10=执 11=行 12=待 13=确 14=认 15=已 16=完 17=成 */
+static void ShowStatusChinese(uint16_t x, uint16_t y, ClaudeStatus st, uint16_t color)
+{
+    LCD_Fill(0, y, LCD_WIDTH - 1, y + 22, BLACK);
+    switch (st) {
+    case CLAUDE_IDLE:
+        LCD_ShowChinese(x, y, 16, 5, color, BLACK);   /* 就 */
+        LCD_ShowChinese(x+18, y, 16, 6, color, BLACK); /* 绪 */
+        break;
+    case CLAUDE_THINKING:
+        LCD_ShowChinese(x, y, 16, 7, color, BLACK);    /* 思 */
+        LCD_ShowChinese(x+18, y, 16, 8, color, BLACK); /* 考 */
+        LCD_ShowChinese(x+36, y, 16, 9, color, BLACK); /* 中 */
+        break;
+    case CLAUDE_EXECUTING:
+        LCD_ShowChinese(x, y, 16, 10, color, BLACK);   /* 执 */
+        LCD_ShowChinese(x+18, y, 16, 11, color, BLACK);/* 行 */
+        LCD_ShowChinese(x+36, y, 16, 9, color, BLACK); /* 中 */
+        break;
+    case CLAUDE_WAITING:
+        LCD_ShowChinese(x, y, 16, 12, color, BLACK);   /* 待 */
+        LCD_ShowChinese(x+18, y, 16, 13, color, BLACK);/* 确 */
+        LCD_ShowChinese(x+36, y, 16, 14, color, BLACK);/* 认 */
+        break;
+    case CLAUDE_DONE:
+        LCD_ShowChinese(x, y, 16, 15, color, BLACK);   /* 已 */
+        LCD_ShowChinese(x+18, y, 16, 16, color, BLACK);/* 完 */
+        LCD_ShowChinese(x+36, y, 16, 17, color, BLACK);/* 成 */
+        break;
+    default:
+        break;
+    }
+}
+
 void Render_StatusText(const char *text, uint16_t color)
 {
-    /* Center the text horizontally */
-    uint16_t text_len = strlen(text);
-    uint16_t text_px = text_len * 8;  /* approx px width for 16-size font */
-    uint16_t x = (LCD_WIDTH - text_px) / 2;
-    if (x > LCD_WIDTH) x = 5;
-
-    /* Clear area */
+    uint16_t w = strlen(text) * 8;  /* ~8px per char at size 16 */
+    uint16_t x = (LCD_WIDTH - w) / 2;
     LCD_Fill(0, STATUS_TEXT_Y, LCD_WIDTH - 1, STATUS_TEXT_Y + 22, BLACK);
-
-    /* Always show text (no pulse to avoid flicker) */
     LCD_String(x, STATUS_TEXT_Y, (char*)text, 16, color, BLACK);
+}
+
+uint8_t g_display_page = 0;  /* 0=PC monitor, 1=Calendar */
+
+/* Days in each month */
+static uint8_t days_in_month(uint8_t y, uint8_t m)
+{
+    static const uint8_t d[] = {31,28,31,30,31,30,31,31,30,31,30,31};
+    if (m != 2) return d[m-1];
+    /* Leap year check */
+    if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) return 29;
+    return 28;
+}
+
+void Render_CalendarPage(void)
+{
+    char buf[20];
+    uint16_t cx, cy, i;
+    const char *wd[] = {"Mo","Tu","We","Th","Fr","Sa","Su"};
+    const char *wd_full[] = {"Mon","Tue","Wed","Thu","Fri","Sat","Sun"};
+
+    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
+
+    /* === Top bar: date + weekday (y=5 to y=35) === */
+    cy = 8;
+    LCD_Fill(0, 0, LCD_WIDTH - 1, 38, DARKBLUE);
+    if (g_pc_data.date_str[0] != '\0') {
+        snprintf(buf, sizeof(buf), "%s  %s", g_pc_data.date_str,
+                 wd_full[g_pc_data.weekday % 7]);
+    } else {
+        snprintf(buf, sizeof(buf), "----/--/--  ---");
+    }
+    cx = (LCD_WIDTH - strlen(buf) * 8) / 2;
+    LCD_String(cx, cy + 5, buf, 16, WHITE, DARKBLUE);
+
+    /* === DHT11 row === */
+    cy = 42;
+    if (g_pc_data.dht11_temp != 0xFF && g_pc_data.dht11_humi != 0xFF) {
+        snprintf(buf, sizeof(buf), "T:%d.%dC  H:%d.%d%%",
+                 g_pc_data.dht11_temp, 0, g_pc_data.dht11_humi, 0);
+    } else {
+        snprintf(buf, sizeof(buf), "T:--.-C  H:--.-%%");
+    }
+    cx = (LCD_WIDTH - strlen(buf) * 8) / 2;
+    LCD_String(cx, cy, buf, 12, GREEN, BLACK);
+
+    /* === Weekday headers === */
+    cy = 62;
+    for (i = 0; i < 7; i++) {
+        cx = 16 + i * 30;
+        uint16_t clr = (i >= 5) ? LIGHTBLUE : WHITE;
+        LCD_String(cx, cy, (char*)wd[i], 12, clr, BLACK);
+    }
+    LCD_Line(0, cy + 16, LCD_WIDTH - 1, cy + 16, DARKBLUE);
+
+    /* === Build calendar data === */
+    uint8_t year = 26, month = 6, today = 1;
+    if (g_pc_data.date_str[4] == '-' && g_pc_data.date_str[7] == '-') {
+        month = (g_pc_data.date_str[5]-'0')*10 + (g_pc_data.date_str[6]-'0');
+        today  = (g_pc_data.date_str[8]-'0')*10 + (g_pc_data.date_str[9]-'0');
+    }
+    uint8_t days = days_in_month(year, month);
+
+    /* First weekday of month */
+    uint8_t m2 = month;
+    if (m2 < 3) { m2 += 12; }
+    uint8_t first_wday = (uint8_t)((1 + 2*m2 + 3*(m2+1)/5 + year + year/4) % 7);
+    first_wday = (first_wday + 5) % 7;  /* Mon=0 */
+
+    /* === Calendar grid === */
+    uint8_t col = first_wday, row = 0, d;
+    uint16_t cell_y0 = 82, cell_h = 24, cell_w = 30;
+
+    for (d = 1; d <= days; d++) {
+        cx = 10 + col * cell_w;
+        cy = cell_y0 + row * cell_h;
+        snprintf(buf, sizeof(buf), "%2d", d);
+
+        if (d == today) {
+            LCD_Fill(cx - 2, cy - 1, cx + cell_w - 4, cy + cell_h - 2, DARKBLUE);
+            LCD_String(cx, cy, buf, 16, YELLOW, DARKBLUE);
+        } else {
+            uint16_t c = (col >= 5) ? LIGHTBLUE : WHITE;
+            LCD_String(cx, cy, buf, 12, c, BLACK);
+        }
+        if (++col >= 7) { col = 0; row++; }
+    }
+
+    /* === Bottom: time === */
+    cy = 270;
+    const char *t = g_pc_data.time_str;
+    if (t[0] == '\0') t = "--:--:--";
+    cx = (LCD_WIDTH - strlen(t) * 12) / 2;
+    LCD_String(cx, cy, (char*)t, 24, WHITE, BLACK);
+
+    /* Page hint */
+    LCD_String(5, LCD_HEIGHT - 15, "[K3] PC", 12, LGRAY, BLACK);
 }
 
 void Render_PCMode(void)
@@ -473,7 +598,7 @@ void Render_PCMode(void)
     uint8_t frame = (uint8_t)((g_sys_tick_ms / 100) % 256);
     Render_ClaudeCharacter(CLAUDE_CX, CLAUDE_CY, frame, g_pc_data.claude);
 
-    /* Status text with color based on state */
+    /* Status text — English for now, Chinese needs PCtoLCD font conversion */
     const char *label = PC_Monitor_GetStatusLabel();
     uint16_t label_color = WHITE;
     switch (g_pc_data.claude) {
@@ -498,12 +623,14 @@ void Render_PCMode(void)
         LCD_String(tx, PC_INFO_BAR_Y + 10, (char*)t, 16, WHITE, DARKBLUE);
     }
 
-    /* Connection dot (small indicator at corner) */
+    /* Connection dot */
     if (g_pc_data.is_connected && g_pc_data.error_count == 0) {
         LCD_Fill(225, PC_INFO_BAR_Y + 3, 234, PC_INFO_BAR_Y + 12, GREEN);
     } else {
         LCD_Fill(225, PC_INFO_BAR_Y + 3, 234, PC_INFO_BAR_Y + 12, RED);
     }
+    /* Page hint */
+    LCD_String(5, PC_INFO_BAR_Y + 8, "K3", 12, LGRAY, DARKBLUE);
 }
 
 /* ================================================================
@@ -552,22 +679,19 @@ void Render_UpdateStatusBar(void)
 
 void Render_DrawPet(uint8_t anim_frame)
 {
-    uint16_t scale;
-    switch (g_pet.stage) {
-        case STAGE_BABY:    scale = 1; break;
-        case STAGE_GROWING: scale = 1; break;
-        case STAGE_MATURE:  scale = 1; break;
-        case STAGE_SECRET:  scale = 1; break;
-        default:            scale = 1; break;
-    }
-
     uint16_t cx = LCD_WIDTH / 2;
     uint16_t cy = PET_AREA_Y + PET_AREA_H / 2 - 10;
 
-    LCD_Fill(0, PET_AREA_Y, LCD_WIDTH - 1, PET_AREA_Y + PET_AREA_H, BLACK);
+    /* Map pet mood to Claude status for expression */
+    ClaudeStatus mood;
+    if (g_pet.is_sick)      mood = CLAUDE_IDLE;
+    else if (g_pet.current_mood == MOOD_HAPPY)  mood = CLAUDE_DONE;
+    else if (g_pet.current_mood == MOOD_SAD)    mood = CLAUDE_WAITING;
+    else if (g_pet.current_mood == MOOD_ANGRY)  mood = CLAUDE_THINKING;
+    else                                        mood = CLAUDE_EXECUTING;
 
-    uint16_t color = CatColor();
-    DrawCat(cx, cy, scale, color, anim_frame);
+    LCD_Fill(0, PET_AREA_Y, LCD_WIDTH - 1, PET_AREA_Y + PET_AREA_H, BLACK);
+    Render_ClaudeCharacter(cx, cy, anim_frame, mood);
 }
 
 void Render_ShowCommandResult(const char *msg)
@@ -608,23 +732,10 @@ void Render_DrawInfoBar(void)
 
 void Render_DrawAll(void)
 {
-    static uint8_t last_mode = 0xFF;  /* 0xFF = unknown on first call */
-
-    if (g_pet.is_pc_mode) {
-        /* Full clear on mode switch to clean old content */
-        if (last_mode != 1) {
-            LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
-            last_mode = 1;
-        }
+    if (g_display_page == 0) {
         Render_PCMode();
     } else {
-        if (last_mode != 0) {
-            LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
-            last_mode = 0;
-        }
-        Render_UpdateStatusBar();
-        Render_DrawPet(g_anim_tick);
-        Render_DrawInfoBar();
+        Render_CalendarPage();
     }
     g_anim_tick++;
     if (g_anim_tick >= 200) g_anim_tick = 0;

@@ -16,7 +16,9 @@ void PC_Monitor_Init(void)
     memset(&g_pc_data, 0, sizeof(PcData));
     g_pc_data.cpu_temp = -1.0f;
     g_pc_data.gpu_temp = -1.0f;
-    g_pc_data.gpu_usage = 0xFF;  /* 0xFF means "no data" for uint8_t */
+    g_pc_data.gpu_usage = 0xFF;
+    g_pc_data.dht11_temp = 0xFF;
+    g_pc_data.dht11_humi = 0xFF;
     g_pc_data.is_connected = 0;
 }
 
@@ -109,6 +111,16 @@ int8_t PC_Monitor_Parse(const char *line, uint16_t len)
         g_pc_data.error_count++;
         return -1;
     }
+
+    /* Parse date */
+    {
+        int y = 0, m = 0, d = 0;
+        if (sscanf(line, "{\"date\": \"%d-%d-%d\"", &y, &m, &d) == 3) {
+            snprintf(g_pc_data.date_str, sizeof(g_pc_data.date_str),
+                     "%04d-%02d-%02d", y, m, d);
+        }
+    }
+    g_pc_data.weekday = (uint8_t)parse_int_field(line, "weekday");
 
     /* Parse time field: search for "time": then extract value */
     {

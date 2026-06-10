@@ -29,6 +29,8 @@
 #include "pet_command.h"
 #include "pet_save.h"
 #include "pc_monitor.h"
+#include "bsp_dht11.h"
+#include "bsp_W25Q128.h"
 
 volatile uint32_t g_sys_tick_ms = 0;
 volatile uint8_t  g_tick_100ms = 0;
@@ -53,136 +55,80 @@ void Delay_ms(uint32_t ms)
 
 int main(void)
 {
-    /* System init */
     SystemInit();
-    SysTick_Config(SystemCoreClock / 1000);  /* 1ms tick */
+    SysTick_Config(SystemCoreClock / 1000);
 
-    /* BSP init */
     Led_Init();
     Key_Init();
+    W25Q128_Init();  /* Must init before LCD for Chinese font */
+    LED_BLUE_ON;
 
-    /* Pet init */
-    Pet_Init();
-
-    /* PC Monitor init */
     PC_Monitor_Init();
-
-    /* Try to load saved data */
-    if (Pet_Save_Init()) {
-        if (!Pet_Load()) {
-            /* No valid save, start fresh */
-            LED_RED_ON;
-            Delay_ms(200);
-            LED_RED_OFF;
-        } else {
-            /* Loaded OK - quick blue blink */
-            LED_BLUE_ON;
-            Delay_ms(200);
-            LED_BLUE_OFF;
-        }
-    }
-
-    /* LCD init */
     Render_Init();
-
-    /* Serial console init */
     Cmd_Init();
 
-    /* Welcome screen */
+    /* Welcome */
     LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%s", g_pet.name);
-    LCD_String(60, 140, buf, 24, GREEN, BLACK);
-    LCD_String(30, 180, "Pixel Claude Pet", 16, WHITE, BLACK);
-    LCD_String(45, 210, "Serial Ready", 12, LIGHTBLUE, BLACK);
+    LCD_String(40, 130, "Pixel Claude", 16, WHITE, BLACK);
+    LCD_String(55, 170, "Serial Ready", 12, LIGHTBLUE, BLACK);
     Delay_ms(1500);
 
-    /* Initial render */
+    /* Full clear before entering monitor mode */
+    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
     Render_DrawAll();
 
     uint32_t last_render_ms = 0;
-    uint32_t last_save_ms = 0;
     uint32_t last_key_check_ms = 0;
 
     while (1)
     {
-        /* --- 100ms tick for pet logic --- */
-        if (g_tick_100ms) {
-            g_tick_100ms = 0;
-            Pet_Tick100ms();
-
-            /* LED indication */
-            if (g_pet.is_pc_mode) {
-                /* PC mode: blue LED steady on */
-                LED_RED_OFF;
-                LED_BLUE_ON;
-            } else if (g_pet.is_sick) {
-                if (g_sys_tick_ms % 500 < 250) {
-                    LED_RED_ON;
-                } else {
-                    LED_RED_OFF;
-                }
-                LED_BLUE_OFF;
-            } else {
-                LED_RED_OFF;
-                LED_BLUE_OFF;
-            }
-        }
-
-        /* --- Serial command processing --- */
         Cmd_Process();
 
-        /* --- PC data staleness check (3s timeout) --- */
+        /* Staleness check */
         if (g_sys_tick_ms - g_pc_data.last_update_ms > 3000) {
             g_pc_data.is_connected = 0;
         }
 
-        /* --- Key handling (every 50ms) --- */
+        /* Keys */
         if (g_sys_tick_ms - last_key_check_ms >= 50) {
             last_key_check_ms = g_sys_tick_ms;
 
-            /* KEY1: Feed (pet) / Yes (PC mode) */
             if (Key_Scan(KEY_1_GPIO, KEY_1_PIN, 1)) {
-                if (g_pet.is_pc_mode) {
-                    UART1_SendString("KEY:YES\r\n");
-                    Render_ShowCommandResult("Yes (K1)");
-                } else if (!Cmd_IsCooldown()) {
-                    Pet_Feed();
-                    Render_ShowCommandResult("Fed! (K1)");
-                    Pet_Save();
-                }
+                UART1_SendString("KEY:PAUSE\r\n");
+                Render_ShowCommandResult("Play/Pause");
             }
-            /* KEY2: Play (pet) / No (PC mode) */
             if (Key_Scan(KEY_2_GPIO, KEY_2_PIN, 0)) {
-                if (g_pet.is_pc_mode) {
-                    UART1_SendString("KEY:NO\r\n");
-                    Render_ShowCommandResult("No (K2)");
-                } else if (!Cmd_IsCooldown()) {
-                    Pet_Play();
-                    Render_ShowCommandResult("Play! (K2)");
-                    Pet_Save();
-                }
+                UART1_SendString("KEY:NEXT\r\n");
+                Render_ShowCommandResult("Next Track");
             }
-            /* KEY3: Clean */
             if (Key_Scan(KEY_3_GPIO, KEY_3_PIN, 0)) {
-                if (!g_pet.is_pc_mode && !Cmd_IsCooldown()) {
-                    Pet_Clean();
-                    Render_ShowCommandResult("Clean! (K3)");
-                    Pet_Save();
+                extern uint8_t g_display_page;
+                g_display_page = !g_display_page;
+                LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
+                if (g_display_page == 0)
+                    Render_ShowCommandResult("PC Monitor");
+                else
+                    Render_ShowCommandResult("Calendar");
+            }
+        }
+
+        /* DHT11 sensor (every 2s) */
+        {
+            static uint32_t last_dht11 = 0;
+            if (g_sys_tick_ms - last_dht11 >= 2000) {
+                last_dht11 = g_sys_tick_ms;
+                uint8_t t, h;
+                if (DHT11_Read(&t, &h)) {
+                    g_pc_data.dht11_temp = t;
+                    g_pc_data.dht11_humi = h;
                 }
             }
         }
 
-        /* --- LCD refresh (every 200ms) --- */
-        if (g_sys_tick_ms - last_render_ms >= 200) {
+        /* Render (500ms) */
+        if (g_sys_tick_ms - last_render_ms >= 500) {
             last_render_ms = g_sys_tick_ms;
             Render_DrawAll();
-        }
-
-        /* --- Auto-save (every 5 seconds) --- */
-        if (g_sys_tick_ms - last_save_ms >= 5000) {
-            last_save_ms = g_sys_tick_ms;
-            Pet_Save();
         }
     }
 }

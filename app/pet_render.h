@@ -54,6 +54,8 @@ void Render_PCStatusBar(void);         /* Top status bars (CPU/GPU/MEM) */
 void Render_ClaudeCharacter(uint16_t cx, uint16_t cy, uint8_t frame, ClaudeStatus mood);  /* Claude face */
 void Render_StatusText(const char *text, uint16_t color);  /* Bottom status text */
 
+extern uint8_t g_display_page;  /* 0=PC monitor, 1=Calendar */
+
 /* Cat colors by stage */
 #define CAT_BABY_COLOR      0xFC08  /* Orange/ginger */
 #define CAT_BABY2_COLOR     0xFD68  /* Light orange */

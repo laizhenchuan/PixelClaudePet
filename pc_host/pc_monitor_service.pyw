@@ -20,6 +20,11 @@ try:
 except ImportError:
     HAS_PYAUTOGUI = False
 
+import servicemanager
+import win32event
+import win32service
+import win32serviceutil
+
 # Handle both frozen EXE and script modes
 if getattr(sys, 'frozen', False):
     # Try EXE dir, then parent dir (dist/ → pc_host/)
@@ -44,17 +49,13 @@ def load_config():
         return json.load(f)
 
 
-class PcMonitorService():
+class PcMonitorService(win32serviceutil.ServiceFramework):
+    _svc_name_ = 'PixelClaudePet'
+    _svc_display_name_ = 'Pixel Claude Pet — PC Monitor Service'
+    _svc_description_ = 'Sends PC hardware stats and Claude Code status to STM32 via serial port.'
+
     def __init__(self, args):
-        import win32serviceutil, win32event, servicemanager, win32service
-        self._svc_name_ = 'PixelClaudePet'
-        self._svc_display_name_ = 'Pixel Claude Pet — PC Monitor Service'
-        self._svc_description_ = 'Sends PC hardware stats and Claude Code status to STM32 via serial port.'
-        self._Framework = win32serviceutil.ServiceFramework
-        self._win32event = win32event
-        self._win32service = win32service
-        self._servicemanager = servicemanager
-        self._Framework.__init__(self, args)
+        win32serviceutil.ServiceFramework.__init__(self, args)
         self._stop_event = win32event.CreateEvent(None, 0, 0, None)
         self._sender = None
         self._status_reader = None
