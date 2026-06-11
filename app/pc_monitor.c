@@ -112,12 +112,15 @@ int8_t PC_Monitor_Parse(const char *line, uint16_t len)
         return -1;
     }
 
-    /* Parse date */
+    /* Parse date — strstr handles date anywhere in JSON */
     {
-        int y = 0, m = 0, d = 0;
-        if (sscanf(line, "{\"date\": \"%d-%d-%d\"", &y, &m, &d) == 3) {
-            snprintf(g_pc_data.date_str, sizeof(g_pc_data.date_str),
-                     "%04d-%02d-%02d", y, m, d);
+        const char *tp = strstr(line, "\"date\":");
+        if (tp) {
+            int y, m, d;
+            if (sscanf(tp, "\"date\": \"%d-%d-%d\"", &y, &m, &d) == 3) {
+                snprintf(g_pc_data.date_str, sizeof(g_pc_data.date_str),
+                         "%04d-%02d-%02d", y, m, d);
+            }
         }
     }
     g_pc_data.weekday = (uint8_t)parse_int_field(line, "weekday");

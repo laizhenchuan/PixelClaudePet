@@ -491,7 +491,16 @@ void Render_StatusText(const char *text, uint16_t color)
     LCD_String(x, STATUS_TEXT_Y, (char*)text, 16, color, BLACK);
 }
 
-uint8_t g_display_page = 0;  /* 0=PC monitor, 1=Calendar */
+uint8_t g_display_page = 0;  /* 0=PC monitor, 1=Calendar, 2=Pomodoro */
+
+/* === Pomodoro Timer State === */
+#define POMO_WORK_SEC   (25 * 60)
+#define POMO_BREAK_SEC  (5 * 60)
+uint16_t g_pomo_sec = POMO_WORK_SEC;
+uint8_t  g_pomo_running = 0;
+uint8_t  g_pomo_is_work = 1;
+uint8_t  g_pomo_count = 0;
+uint32_t g_pomo_last_tick = 0;
 
 /* Days in each month */
 static uint8_t days_in_month(uint8_t y, uint8_t m)
@@ -501,6 +510,53 @@ static uint8_t days_in_month(uint8_t y, uint8_t m)
     /* Leap year check */
     if ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0) return 29;
     return 28;
+}
+
+void Render_PomodoroPage(void)
+{
+    char buf[20];
+    uint16_t mins, secs;
+    uint16_t cy;
+
+    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
+
+    /* Title */
+    cy = 20;
+    LCD_String(70, cy, "Pomodoro", 16, WHITE, BLACK);
+
+    /* Work/Break label */
+    cy = 50;
+    snprintf(buf, sizeof(buf), "%s #%d",
+             g_pomo_is_work ? "WORK" : "BREAK", g_pomo_count);
+    uint16_t tx = (LCD_WIDTH - strlen(buf) * 12) / 2;
+    uint16_t clr = g_pomo_is_work ? RED : GREEN;
+    LCD_String(tx, cy, buf, 24, clr, BLACK);
+
+    /* Big countdown */
+    cy = 110;
+    mins = g_pomo_sec / 60;
+    secs = g_pomo_sec % 60;
+    snprintf(buf, sizeof(buf), "%02d:%02d", mins, secs);
+    tx = (LCD_WIDTH - 5 * 16) / 2;  /* 5 chars * ~16px at size 32 */
+    LCD_String(tx, cy, buf, 32, WHITE, BLACK);
+
+    /* Progress bar */
+    cy = 170;
+    uint16_t total = g_pomo_is_work ? POMO_WORK_SEC : POMO_BREAK_SEC;
+    uint8_t pct = (uint8_t)((uint32_t)(total - g_pomo_sec) * 100 / total);
+    DrawBar(30, cy, 180, 12, pct, g_pomo_is_work ? RED : GREEN, DARKBLUE);
+
+    /* Status */
+    cy = 200;
+    LCD_String(60, cy, g_pomo_running ? "Running" : "Paused", 16,
+               g_pomo_running ? GREEN : YELLOW, BLACK);
+
+    /* Key hints */
+    cy = 260;
+    LCD_String(10, cy, "K1:", 12, WHITE, BLACK);
+    LCD_String(40, cy, g_pomo_running ? "Pause" : "Start", 12, GREEN, BLACK);
+    LCD_String(100, cy, "K2:Reset", 12, WHITE, BLACK);
+    LCD_String(10, cy + 20, "K3:Next", 12, LGRAY, BLACK);
 }
 
 void Render_CalendarPage(void)
@@ -552,11 +608,15 @@ void Render_CalendarPage(void)
     }
     uint8_t days = days_in_month(year, month);
 
-    /* First weekday of month */
-    uint8_t m2 = month;
-    if (m2 < 3) { m2 += 12; }
-    uint8_t first_wday = (uint8_t)((1 + 2*m2 + 3*(m2+1)/5 + year + year/4) % 7);
-    first_wday = (first_wday + 5) % 7;  /* Mon=0 */
+    uint8_t first_wday;
+    /* Zeller: compute weekday of 1st day (0=Mon..6=Sun) */
+    {
+        uint8_t mz = month, yz = year;
+        if (mz < 3) { mz += 12; yz--; }
+        uint8_t K = yz, J = 20;
+        uint8_t h = (uint8_t)((1 + (13*(mz+1))/5 + K + K/4 + J/4 + 5*J) % 7);
+        first_wday = (h + 5) % 7;
+    }
 
     /* === Calendar grid === */
     uint8_t col = first_wday, row = 0, d;
@@ -630,7 +690,7 @@ void Render_PCMode(void)
         LCD_Fill(225, PC_INFO_BAR_Y + 3, 234, PC_INFO_BAR_Y + 12, RED);
     }
     /* Page hint */
-    LCD_String(5, PC_INFO_BAR_Y + 8, "K3", 12, LGRAY, DARKBLUE);
+    LCD_String(5, PC_INFO_BAR_Y + 8, "K3:Page", 12, LGRAY, DARKBLUE);
 }
 
 /* ================================================================
@@ -734,8 +794,10 @@ void Render_DrawAll(void)
 {
     if (g_display_page == 0) {
         Render_PCMode();
-    } else {
+    } else if (g_display_page == 1) {
         Render_CalendarPage();
+    } else {
+        Render_PomodoroPage();
     }
     g_anim_tick++;
     if (g_anim_tick >= 200) g_anim_tick = 0;

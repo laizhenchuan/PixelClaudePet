@@ -94,21 +94,48 @@ int main(void)
             last_key_check_ms = g_sys_tick_ms;
 
             if (Key_Scan(KEY_1_GPIO, KEY_1_PIN, 1)) {
-                UART1_SendString("KEY:PAUSE\r\n");
-                Render_ShowCommandResult("Play/Pause");
+                extern uint8_t g_display_page;
+                if (g_display_page == 2) {
+                    /* Pomodoro: Start/Pause */
+                    extern uint8_t g_pomo_running;
+                    extern uint32_t g_pomo_last_tick;
+                    g_pomo_running = !g_pomo_running;
+                    if (g_pomo_running) {
+                        g_pomo_last_tick = g_sys_tick_ms;
+                        Render_ShowCommandResult("Started");
+                    } else {
+                        Render_ShowCommandResult("Paused");
+                    }
+                } else {
+                    UART1_SendString("KEY:PAUSE\r\n");
+                    Render_ShowCommandResult("Play/Pause");
+                }
             }
             if (Key_Scan(KEY_2_GPIO, KEY_2_PIN, 0)) {
-                UART1_SendString("KEY:NEXT\r\n");
-                Render_ShowCommandResult("Next Track");
+                extern uint8_t g_display_page;
+                if (g_display_page == 2) {
+                    /* Pomodoro: Reset */
+                    extern uint16_t g_pomo_sec;
+                    extern uint8_t g_pomo_running, g_pomo_is_work;
+                    g_pomo_running = 0;
+                    g_pomo_is_work = 1;
+                    g_pomo_sec = 25 * 60;
+                    Render_ShowCommandResult("Reset");
+                } else {
+                    UART1_SendString("KEY:NEXT\r\n");
+                    Render_ShowCommandResult("Next Track");
+                }
             }
             if (Key_Scan(KEY_3_GPIO, KEY_3_PIN, 0)) {
                 extern uint8_t g_display_page;
-                g_display_page = !g_display_page;
+                g_display_page = (g_display_page + 1) % 3;
                 LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
                 if (g_display_page == 0)
                     Render_ShowCommandResult("PC Monitor");
-                else
+                else if (g_display_page == 1)
                     Render_ShowCommandResult("Calendar");
+                else
+                    Render_ShowCommandResult("Pomodoro");
             }
         }
 
@@ -121,6 +148,31 @@ int main(void)
                 if (DHT11_Read(&t, &h)) {
                     g_pc_data.dht11_temp = t;
                     g_pc_data.dht11_humi = h;
+                }
+            }
+        }
+
+        /* Pomodoro tick (every second) */
+        {
+            extern uint8_t g_pomo_running;
+            extern uint16_t g_pomo_sec;
+            extern uint8_t g_pomo_is_work, g_pomo_count;
+            extern uint32_t g_pomo_last_tick;
+            static uint32_t last_pomo_tick = 0;
+            if (g_pomo_running && g_sys_tick_ms - last_pomo_tick >= 1000) {
+                last_pomo_tick = g_sys_tick_ms;
+                if (g_pomo_sec > 0) {
+                    g_pomo_sec--;
+                }
+                if (g_pomo_sec == 0) {
+                    if (g_pomo_is_work) {
+                        g_pomo_count++;
+                        g_pomo_is_work = 0;
+                        g_pomo_sec = 5 * 60;  /* break */
+                    } else {
+                        g_pomo_is_work = 1;
+                        g_pomo_sec = 25 * 60; /* next work */
+                    }
                 }
             }
         }
