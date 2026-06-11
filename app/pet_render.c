@@ -520,9 +520,28 @@ void Render_PomodoroPage(void)
 
     LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
 
+    /* === Animated tomato icon (top-left) === */
+    {
+        extern volatile uint32_t g_sys_tick_ms;
+        uint8_t f = (g_sys_tick_ms / 100) % 60;
+        /* Tomato body (red circle) */
+        uint16_t tx = 30, ty = 30;
+        LCD_Circle(tx, ty, 12, RED);
+        LCD_Fill(tx - 12, ty - 10, tx + 12, ty + 8, RED);
+        /* Green leaf on top */
+        LCD_Fill(tx - 2, ty - 19, tx + 2, ty - 12, GREEN);
+        LCD_Fill(tx - 6, ty - 17, tx + 6, ty - 14, GREEN);
+        /* Highlight */
+        LCD_Circle(tx - 4, ty - 3, 3, WHITE);
+        /* Subtle pulsing when running */
+        if (g_pomo_running && (f < 10)) {
+            LCD_Circle(tx, ty, 14, RED);
+        }
+    }
+
     /* Title */
     cy = 20;
-    LCD_String(70, cy, "Pomodoro", 16, WHITE, BLACK);
+    LCD_String(55, cy, "Pomodoro", 16, WHITE, BLACK);
 
     /* Work/Break label */
     cy = 50;
@@ -539,6 +558,24 @@ void Render_PomodoroPage(void)
     snprintf(buf, sizeof(buf), "%02d:%02d", mins, secs);
     tx = (LCD_WIDTH - 5 * 16) / 2;  /* 5 chars * ~16px at size 32 */
     LCD_String(tx, cy, buf, 32, WHITE, BLACK);
+
+    /* Animated dots (bouncing when running) */
+    {
+        extern volatile uint32_t g_sys_tick_ms;
+        uint8_t f = (g_sys_tick_ms / 150) % 12;
+        uint16_t dx = 80;
+        for (uint8_t i = 0; i < 4; i++) {
+            uint16_t dy = cy - 8;
+            if (g_pomo_running) {
+                /* Bounce: rise and fall */
+                uint8_t phase = (f + i * 3) % 12;
+                if (phase < 6) dy -= phase * 2;
+                else dy -= (11 - phase) * 2;
+            }
+            uint16_t dc = g_pomo_running ? YELLOW : LGRAY;
+            LCD_Fill(dx + i * 20, dy, dx + i * 20 + 6, dy + 6, dc);
+        }
+    }
 
     /* Progress bar */
     cy = 170;
@@ -557,6 +594,14 @@ void Render_PomodoroPage(void)
     LCD_String(40, cy, g_pomo_running ? "Pause" : "Start", 12, GREEN, BLACK);
     LCD_String(100, cy, "K2:Reset", 12, WHITE, BLACK);
     LCD_String(10, cy + 20, "K3:Next", 12, LGRAY, BLACK);
+
+    /* Bottom clock */
+    {
+        const char *t = g_pc_data.time_str;
+        if (t[0] == '\0') t = "--:--:--";
+        uint16_t tx = (LCD_WIDTH - strlen(t) * 12) / 2;
+        LCD_String(tx, 290, (char*)t, 24, WHITE, BLACK);
+    }
 }
 
 void Render_CalendarPage(void)
