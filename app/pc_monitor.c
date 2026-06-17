@@ -125,6 +125,40 @@ int8_t PC_Monitor_Parse(const char *line, uint16_t len)
     }
     g_pc_data.weekday = (uint8_t)parse_int_field(line, "weekday");
 
+    /* Parse song/artist */
+    {
+        const char *sp = strstr(line, "\"song\":");
+        if (sp) {
+            sp += 7; while (*sp == ' ' || *sp == '"') sp++;
+            uint8_t n = 0;
+            while (*sp && *sp != '"' && n < sizeof(g_pc_data.song) - 1)
+                g_pc_data.song[n++] = *sp++;
+            g_pc_data.song[n] = '\0';
+        }
+        sp = strstr(line, "\"artist\":");
+        if (sp) {
+            sp += 9; while (*sp == ' ' || *sp == '"') sp++;
+            uint8_t n = 0;
+            while (*sp && *sp != '"' && n < sizeof(g_pc_data.artist) - 1)
+                g_pc_data.artist[n++] = *sp++;
+            g_pc_data.artist[n] = '\0';
+        }
+        sp = strstr(line, "\"lyrics\":");
+        if (sp) {
+            sp += 9; while (*sp == ' ' || *sp == '"') sp++;
+            uint8_t n = 0;
+            /* Handle escaped newlines: \\n -> real newline */
+            while (*sp && *sp != '"' && n < sizeof(g_pc_data.lyrics) - 1) {
+                if (*sp == '\\' && *(sp+1) == 'n') {
+                    g_pc_data.lyrics[n++] = '\n'; sp += 2;
+                } else {
+                    g_pc_data.lyrics[n++] = *sp++;
+                }
+            }
+            g_pc_data.lyrics[n] = '\0';
+        }
+    }
+
     /* Parse time field: search for "time": then extract value */
     {
         const char *tp = strstr(line, "\"time\":");

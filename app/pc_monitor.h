@@ -30,6 +30,9 @@ typedef struct {
     /* DHT11 sensor */
     uint8_t  dht11_temp;     /* Room temperature (C), 0xFF = no sensor */
     uint8_t  dht11_humi;     /* Room humidity (%), 0xFF = no sensor */
+    char     song[64];       /* Media title from PC */
+    char     artist[48];     /* Media artist from PC */
+    char     lyrics[256];    /* Lyrics text from PC */
 } PcData;
 
 /* --- Global instance --- */

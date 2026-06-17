@@ -25,6 +25,7 @@ class SerialSender:
                 parity=serial.PARITY_NONE,
                 stopbits=serial.STOPBITS_ONE,
                 timeout=self._timeout,
+                write_timeout=0.5,
             )
             log.info("Connected to %s @ %d baud", self._port, self._baudrate)
             return True

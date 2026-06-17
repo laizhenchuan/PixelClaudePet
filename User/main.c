@@ -128,14 +128,10 @@ int main(void)
             }
             if (Key_Scan(KEY_3_GPIO, KEY_3_PIN, 0)) {
                 extern uint8_t g_display_page;
-                g_display_page = (g_display_page + 1) % 3;
+                g_display_page = (g_display_page + 1) % 4;
                 LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
-                if (g_display_page == 0)
-                    Render_ShowCommandResult("PC Monitor");
-                else if (g_display_page == 1)
-                    Render_ShowCommandResult("Calendar");
-                else
-                    Render_ShowCommandResult("Pomodoro");
+                const char *pages[] = {"PC Monitor","Calendar","Pomodoro","Lyrics"};
+                Render_ShowCommandResult((char*)pages[g_display_page]);
             }
         }
 

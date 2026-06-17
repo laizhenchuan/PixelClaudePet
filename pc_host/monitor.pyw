@@ -9,6 +9,7 @@ logging.info("Pixel Claude Pet started")
 
 from serial_sender import SerialSender
 from status_reader import StatusReader
+from media_info import get_media_info, get_lyrics
 import psutil
 
 def _get_gpu_info():
@@ -36,10 +37,20 @@ def collect():
 sender = SerialSender('COM3', 115200, 0.5)
 sr = StatusReader('C:/Users/29918/.claude/claude_status.txt', 'idle')
 
+_last_media = 0
+_media_cache = {'title': '', 'artist': ''}
+
 while True:
     try:
         data = collect()
         data['claude'] = sr.read()
+        # Query media info every 3s
+        if time.time() - _last_media > 3:
+            _last_media = time.time()
+            _media_cache = get_media_info()
+        data['song'] = _media_cache['title']
+        data['artist'] = _media_cache['artist']
+        data['lyrics'] = get_lyrics(_media_cache['title'], _media_cache['artist'])[:256]
         if not sender.is_connected:
             sender.connect()
         sender.send(data)

@@ -604,6 +604,106 @@ void Render_PomodoroPage(void)
     }
 }
 
+/* ================================================================
+ * LYRICS PAGE — shows now-playing song info
+ * ================================================================ */
+void Render_LyricsPage(void)
+{
+    char buf[64];
+    uint16_t cy;
+
+    LCD_Fill(0, 0, LCD_WIDTH - 1, LCD_HEIGHT - 1, BLACK);
+
+    /* Music icon (simple note) */
+    {
+        uint16_t nx = 100, ny = 25;
+        LCD_Circle(nx, ny, 8, CYAN);
+        LCD_Fill(nx - 3, ny + 5, nx + 3, ny + 18, CYAN);
+        LCD_Fill(nx - 8, ny + 10, nx + 8, ny + 16, CYAN);
+    }
+
+    /* Title - Now Playing */
+    cy = 60;
+    LCD_String(50, cy, "Now Playing", 16, LIGHTBLUE, BLACK);
+
+    /* Song title */
+    cy = 100;
+    if (g_pc_data.song[0] != '\0') {
+        uint16_t tx = (LCD_WIDTH - strlen(g_pc_data.song) * 8) / 2;
+        if (tx > LCD_WIDTH) tx = 5;
+        LCD_String(tx, cy, g_pc_data.song, 16, WHITE, BLACK);
+    } else {
+        LCD_String(50, cy, "No media playing", 12, LGRAY, BLACK);
+    }
+
+    /* Artist */
+    cy = 130;
+    if (g_pc_data.artist[0] != '\0') {
+        uint16_t tx = (LCD_WIDTH - strlen(g_pc_data.artist) * 8) / 2;
+        if (tx > LCD_WIDTH) tx = 5;
+        LCD_String(tx, cy, g_pc_data.artist, 12, CYAN, BLACK);
+    }
+
+    /* Divider */
+    LCD_Line(10, 165, LCD_WIDTH - 10, 165, DARKBLUE);
+
+    /* Lyrics text (auto-scroll) */
+    if (g_pc_data.lyrics[0] != '\0') {
+        extern volatile uint32_t g_sys_tick_ms;
+        /* Count lines in lyrics */
+        uint16_t total_lines = 1;
+        const char *lp = g_pc_data.lyrics;
+        while (*lp) { if (*lp++ == '\n') total_lines++; }
+        /* Scroll: shift every 4 seconds */
+        uint8_t scroll_offset = (uint8_t)((g_sys_tick_ms / 4000) % total_lines);
+        /* Find start of current line */
+        lp = g_pc_data.lyrics;
+        for (uint8_t s = 0; s < scroll_offset && *lp; s++) {
+            while (*lp && *lp != '\n') lp++;
+            if (*lp == '\n') lp++;
+        }
+        /* Show 3 lines */
+        uint16_t ly = 175;
+        for (uint8_t li = 0; li < 3 && *lp; li++) {
+            char line[33] = {0};
+            uint8_t ln = 0;
+            while (*lp && *lp != '\n' && ln < 30) line[ln++] = *lp++;
+            if (*lp == '\n') lp++;
+            LCD_String(5, ly, line, 12, WHITE, BLACK);
+            ly += 16;
+        }
+    } else {
+        LCD_String(30, 180, "No lyrics available", 12, LGRAY, BLACK);
+    }
+
+    /* Animated equalizer bars */
+    {
+        extern volatile uint32_t g_sys_tick_ms;
+        cy = 185;
+        for (uint8_t i = 0; i < 5; i++) {
+            uint8_t f = (g_sys_tick_ms / 80 + i * 5) % 16;
+            uint8_t h = (f < 8) ? (f * 3 + 6) : ((15 - f) * 3 + 6);
+            LCD_Fill(60 + i * 26, cy + 20 - h, 60 + i * 26 + 12, cy + 20, GREEN);
+        }
+    }
+
+    /* Controls */
+    cy = 230;
+    LCD_String(30, cy, "Prev", 12, WHITE, BLACK);
+    LCD_String(95, cy, "Play", 12, WHITE, BLACK);
+    LCD_String(160, cy, "Next", 12, WHITE, BLACK);
+
+    /* Bottom clock */
+    {
+        const char *t = g_pc_data.time_str;
+        if (t[0] == '\0') t = "--:--:--";
+        uint16_t tx = (LCD_WIDTH - strlen(t) * 12) / 2;
+        LCD_String(tx, 270, (char*)t, 20, WHITE, BLACK);
+    }
+
+    LCD_String(5, LCD_HEIGHT - 15, "K3:Next", 12, LGRAY, BLACK);
+}
+
 void Render_CalendarPage(void)
 {
     char buf[20];
@@ -841,8 +941,10 @@ void Render_DrawAll(void)
         Render_PCMode();
     } else if (g_display_page == 1) {
         Render_CalendarPage();
-    } else {
+    } else if (g_display_page == 2) {
         Render_PomodoroPage();
+    } else {
+        Render_LyricsPage();
     }
     g_anim_tick++;
     if (g_anim_tick >= 200) g_anim_tick = 0;
